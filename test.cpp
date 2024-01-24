@@ -92,6 +92,19 @@ void conserve_momentum(ATOOLS::Vec4D_Vector& p, double ET)
 
 int main(int argc,char* argv[])
 {
+bool juliaFlag = false;
+int shiftCount = 0;
+// Start from 1 because argv[0] is the program name
+for (int i = 1; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg == "julia") {
+        shiftCount++;
+        juliaFlag = true;
+        //break; // Optional: Stop searching after "julia" is found
+    }
+    argv[i - shiftCount] = argv[i];
+}
+argc -= shiftCount; // This is so the program behaves as if julia never existed for the rest of the flags
 #ifdef USING__MPI
   MPI_Init(&argc, &argv);
 #endif
@@ -105,7 +118,7 @@ int main(int argc,char* argv[])
     Process.Initialize();
 
     ATOOLS::ran->SetSeed(42);
-    ATOOLS::rpa->gen.SetNumberOfEvents(10);
+    ATOOLS::rpa->gen.SetNumberOfEvents(50000);
 
     // HepMC3 Interface
     HepMC3::WriterAscii output_file("events.hepmc");
@@ -191,13 +204,14 @@ int main(int argc,char* argv[])
 
     //for (size_t i(0); i<200000; ++i) {
     //for (size_t i(0); i<nevents; ++i) {
-     while (!stopRequested) {
+    int i = 0;
+    while (!stopRequested && (i < nevents || juliaFlag)) {
       // Prompt the user for testpoint values
       std::vector<double> testpoint;
       std::string inputVal;
 
       //std::cout << "Enter testpoint values (e.g., 0.15 0.15): ";
-      while (std::cin >> inputVal) {
+      while (juliaFlag && std::cin >> inputVal) {
           if (inputVal == "s") {
               stopRequested = true;
               break;
@@ -213,14 +227,12 @@ int main(int argc,char* argv[])
       
       ntrials_total++;
       ntrials_this++;
-      // for (auto& r : rans) {
-      //   r = ATOOLS::ran->Get();
-      // }
+      for (auto& r : rans) {
+        r = ATOOLS::ran->Get();
+      }
 
       // map from hypercube to momenta
-      //rambo.map(rans, pout);
-      // map from hypercube to momenta
-      rambo.map(testpoint, pout);
+      if(juliaFlag){rambo.map(testpoint, pout);}else{rambo.map(rans, pout);}
 
       std::copy(pout.begin(), pout.end(), momenta.begin()+2);
 
@@ -235,14 +247,17 @@ int main(int argc,char* argv[])
       triggers += accept;
 
       if (accept) {
-        //rambo_input->set_value(rans);
-        rambo_input->set_value(testpoint);
-
+        if(juliaFlag){rambo_input->set_value(testpoint);}else{rambo_input->set_value(rans);}
+        
         // get matrix elements
         cs_me = Process.CSMatrixElement();
 
+        if(juliaFlag){
         outputFile << "  cs_me: "<< cs_me << std::endl;
-        std::cout << std::setprecision(16) << cs_me << std::endl;
+        std::cout << std::setprecision(16) << cs_me << std::endl;}
+        else{
+          if(i%10000 == 0)std::cout << i << " Events generated" << std::endl;
+        }
 
         w = cs_me*ps;
         sumw += w;
@@ -270,9 +285,9 @@ int main(int argc,char* argv[])
 
         evt.set_event_number(evt.event_number()+1);
         ntrials_this = 0;   
-
+        i++;
       } else {
-        std::cout << 0 << std::endl; //Return Matrixelement for non triggered events
+        if(juliaFlag){std::cout << 0 << std::endl;} //Return Matrixelement for non triggered events
       }
   
     }
@@ -307,4 +322,3 @@ int main(int argc,char* argv[])
 
   return 0;
 }
-

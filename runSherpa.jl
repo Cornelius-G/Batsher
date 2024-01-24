@@ -10,7 +10,7 @@ using InverseFunctions
 using ValueShapes
 ENV["JULIA_DEBUG"] = "BAT"
 
-cmd = `./build/test OUTPUT=0`
+cmd = `./build/test julia OUTPUT=0`
 nthreads = Threads.nthreads()
 nthreads=1
 
