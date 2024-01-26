@@ -90,8 +90,11 @@ void conserve_momentum(ATOOLS::Vec4D_Vector& p, double ET)
   for (short int i=nin;i<nin+nout;i++) p[i] = ATOOLS::Vec4D(E[i],x*ATOOLS::Vec3D(p[i]));
 }
 
+//----- Main ------------------------------------------------------------------
 int main(int argc,char* argv[])
 {
+
+// Get flag whether program is called from Julia or not
 bool juliaFlag = false;
 int shiftCount = 0;
 // Start from 1 because argv[0] is the program name
@@ -105,6 +108,7 @@ for (int i = 1; i < argc; ++i) {
     argv[i - shiftCount] = argv[i];
 }
 argc -= shiftCount; // This is so the program behaves as if julia never existed for the rest of the flags
+
 #ifdef USING__MPI
   MPI_Init(&argc, &argv);
 #endif
@@ -121,7 +125,14 @@ argc -= shiftCount; // This is so the program behaves as if julia never existed 
     ATOOLS::rpa->gen.SetNumberOfEvents(50000);
 
     // HepMC3 Interface
-    HepMC3::WriterAscii output_file("events.hepmc");
+    std::string hepmc_path;
+    if (juliaFlag) {
+      hepmc_path = "output/events_bat.hepmc"; // File path if flag is true
+    } else {
+      hepmc_path = "output/events_sherpa.hepmc"; // File path if flag is false
+    }
+
+    HepMC3::WriterAscii output_file(hepmc_path.c_str());
 
     int nparticles = Process.GetProc()->NOut();
     int ndim = 3*nparticles-4;
@@ -190,7 +201,7 @@ argc -= shiftCount; // This is so the program behaves as if julia never existed 
     // while loop to keep asking for testpoints
     bool stopRequested = false;
     // File ----------------------------------------------
-    std::ofstream outputFile("example.txt");
+    std::ofstream outputFile("output/example.txt");
 
     // Check if the file was successfully opened
     if (!outputFile.is_open()) {
@@ -210,7 +221,7 @@ argc -= shiftCount; // This is so the program behaves as if julia never existed 
       std::vector<double> testpoint;
       std::string inputVal;
 
-      //std::cout << "Enter testpoint values (e.g., 0.15 0.15): ";
+      //std::cout << "Enter testpoint values (e.g., 0.15 0.15 ....): ";
       while (juliaFlag && std::cin >> inputVal) {
           if (inputVal == "s") {
               stopRequested = true;
@@ -220,7 +231,7 @@ argc -= shiftCount; // This is so the program behaves as if julia never existed 
           outputFile << "inputVal: "<< number << "  " << std::flush;
           testpoint.push_back(number);
           if (testpoint.size() >= 5) {
-              break; // Break after two values are entered
+              break; // Break after 5 values are entered
           }
       }
       if(stopRequested){continue;}
@@ -251,7 +262,8 @@ argc -= shiftCount; // This is so the program behaves as if julia never existed 
         
         // get matrix elements
         cs_me = Process.CSMatrixElement();
-
+        
+        // print some information
         if(juliaFlag){
         outputFile << "  cs_me: "<< cs_me << std::endl;
         std::cout << std::setprecision(16) << cs_me << std::endl;}

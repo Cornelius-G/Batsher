@@ -1,7 +1,5 @@
 using Pkg
-# DEPOT_PATH[1]="/net/e4-nfs-home.e4.physik.tu-dortmund.de/home/slacagnina/.juliakiss/"
-# Pkg.activate("/net/e4-nfs-home.e4.physik.tu-dortmund.de/home/slacagnina/.juliakiss/environments/kiss")
-# "julia.environmentPath": "/net/e4-nfs-home.e4.physik.tu-dortmund.de/home/slacagnina/kiss",
+
 using BAT
 using Distributions
 using IntervalSets
@@ -14,10 +12,11 @@ cmd = `./build/test julia OUTPUT=0`
 nthreads = Threads.nthreads()
 nthreads=1
 
-#process = open(cmd, "w+") #open a process, with read and write access
 processes = [open(cmd, "w+") for i in 1:nthreads]#open a process, with read and write access
 
-pid = getpid(processes[1])
+# get pid of the processes to track in taskmanager
+pid = getpid.(processes)
+
 
 prior = BAT.NamedTupleDist(
     a = fill(0..1, 5),
@@ -86,7 +85,7 @@ samples = bat_sample(posterior, MCMCSampling(mcalg = MetropolisHastings(), nstep
 import NestedSamplers
 samples = bat_sample(posterior, EllipsoidalNestedSampling(max_ncalls=5e5,))
 
-samples = bat_sample(posterior, RAMSampler(nchains=2))
+samples = bat_sample(posterior, RAMSampler(nchains=4))
 
 close.(processes)
 
@@ -95,11 +94,15 @@ using Plots
 p = plot(samples.result)
 
 
+
+# Get samples with all weights =1:
 n_samples = length(samples.result)
 samples_no_weights = bat_sample(samples.result, RandResampling(nsamples=n_samples))
 
-processes = [open(cmd, "w+") for i in 1:nthreads]
+p = plot(samples_no_weights.result)
 
+# run unweighted samples through likelihood again to get hepmc file with events:
+processes = [open(cmd, "w+") for i in 1:nthreads]
 myf.(samples_no_weights.result.v)
 
 close.(processes)
