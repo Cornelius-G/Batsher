@@ -29,6 +29,19 @@ export RAMSampler
 end
 
 
+function show_progress(i, nthreads)
+    if nthreads > 1
+        if i == 1
+            return true
+        else
+            return false
+        end
+    else
+        return true
+    end
+
+end
+
 function bat_sample_impl(
     target::AnyMeasureOrDensity,
     algorithm::RAMSampler,
@@ -41,9 +54,11 @@ function bat_sample_impl(
     ram_vector = []
     @info "Start RAM sampling of $(algorithm.nchains) chains with $(Threads.nthreads()) threads."
 
+    nthreads = Threads.nthreads()
+    @info "Number of threads: $nthreads"
     Threads.@threads for i in 1:algorithm.nchains
         try
-            push!(ram_vector, generate_ram_samples(i, density, algorithm, context; show_progress = ifelse(i==1, true, false)))
+            push!(ram_vector, generate_ram_samples(i, density, algorithm, context; show_progress = show_progress(i, nthreads)))# ifelse(i==1, true, false)))
         catch err
             @info "RAM sampling failed for thread $(Threads.threadid())."
         end
@@ -77,6 +92,8 @@ function generate_ram_samples(
         n_tries += 1
         try
             x0 = any(isnothing.(algorithm.x0)) ? bat_initval(target_density, InitFromTarget(), context).result : algorithm.x0[i]
+            println(x0)
+        
             M0 = algorithm.M0[i]
             println("n_tries: ", n_tries)
 
@@ -94,6 +111,13 @@ function generate_ram_samples(
     nburnin = algorithm.nburnin
     samples = nestedview(ram_result.chain')[nburnin+1:end]
     logvals = ram_result.log_probabilities_x[nburnin+1:end]
+
+    
+    if length(unique(samples)) < 10
+        println("Not enough unique samples. Removing chain $i.")
+        println("Length: ", length(unique(samples)))
+        throw(ErrorException("Not enough unique samples."))
+    end
 
     return (samples=samples, logvals=logvals, M=ram_result.M, acceptance_rate=ram_result.acceptance_rate)
 end
@@ -114,4 +138,7 @@ function collect_samples(ram_vector)
 
     return (samples=samples, M=M, acceptance_rate=acceptance_rate)
 end
+
+
+
 
